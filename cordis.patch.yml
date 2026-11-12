@@ -1,0 +1,14 @@
+# Bundle patch layer for dsh-shell-skills.
+#
+# A single `insert` row loads this package's main entry as the host half (a
+# plain Cordis plugin); the `dsh.client` declaration in package.json is what
+# makes the web app load ./client as the browser half.
+#
+# No `config:` block here on purpose. Every user-facing field is `.volatile()`,
+# so the manager card on the Plugins page owns it and its value belongs in the
+# profile's own patch layer. Operational fields (root, pythonPath, timeouts)
+# are edited by adding a `config:` block to this entry in YOUR profile patch,
+# never in this file.
+- insert:
+    - id: dsh-shell-skills
+      name: dsh-shell-skills

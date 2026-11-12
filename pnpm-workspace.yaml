@@ -1,0 +1,15 @@
+# Test-only install settings.
+#
+# `dsh` profiles install their plugins with the hoisted linker, so this repo
+# matches that layout: it keeps the local test install shaped like the one the
+# harness actually produces, and avoids relying on symlinked store paths.
+#
+# Peers are never auto-installed: `@deepseek-ai/schemastery` and
+# `@deepseek-ai/dsh-tools` are peers because the running harness supplies its
+# own copies through the profile resolver, and installing a second one here
+# would only be for tests (hence devDependencies).
+packages:
+  - .
+
+nodeLinker: hoisted
+autoInstallPeers: false

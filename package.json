@@ -1,0 +1,65 @@
+{
+  "name": "dsh-shell-skills",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin that runs shell-tool style Python skills (skill/<name>/skill.py), publishes a shellSkills service for context injection, and ships a Plugins-page manager for install, enable, and removal.",
+  "author": "abc12524",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abc12524/dsh-shell-skills.git"
+  },
+  "homepage": "https://github.com/abc12524/dsh-shell-skills#readme",
+  "bugs": {
+    "url": "https://github.com/abc12524/dsh-shell-skills/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/runner.py",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "skill",
+    "python",
+    "shell-skills"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.2"
+  }
+}
