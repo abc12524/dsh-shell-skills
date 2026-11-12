@@ -7,7 +7,7 @@
 - **扫描**：`<root>/<name>/skill.py`，按 shell-tool 的规则解析头部（`# skill:` / `description` / `status` / `usage`，前 300 行）。
 - **服务** `shellSkills`：`list()`（仅已安装且启用）、`all()`、`get()`、`setStatus()`、`install()`、`remove()`、`run()`、`listRemote()`。
 - **工具** `shell_skill`：`all=true` 列表、`skill=name` 只返回该 skill 的 `# usage:` 块（不含描述/状态/信封，原样作 `result` 返回）、带 `arguments` 执行、`action` 做安装/启停。
-- **设置页**：配置远程仓库（GitHub / Gitea）、查看已安装与远程 skill；已安装项用开关启停、可卸载，远程项用箭头图标下载。
+- **设置页**：配置远程仓库（留空走 GitHub 公共仓库，填内网基址即走 Gitea 接口，类型不单独配置）、查看已安装与远程 skill；已安装项用开关启停、可卸载，远程项用下载按钮安装。
 
 ## 安装
 
@@ -52,8 +52,7 @@ def run(arguments: dict):
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `enabled` | `true` | 关闭后 Host 停止同步管理状态（工具仍可显式调用） |
-| `hubType` | `github` | `github` / `gitea` |
-| `hubBase` | （空） | Gitea 基址，如 `http://192.168.30.181:3000`；GitHub 忽略 |
+| `hubBase` | （空） | 自建仓库基址，如 `http://192.168.30.181:3000`。**留空即 GitHub 公共仓库**；填了就走 Gitea 接口（`/api/v1/...`），类型由 URL 推断，没有单独的 `hubType` |
 | `hubRepo` | `abc12524/shell-skills` | `owner/repo` |
 | `hubBranch` | `main` | 远程分支 |
 | `root` | `~/.dsh/shell-skills` | skill 根目录；可指向 shell-tool 的 `skill/` |

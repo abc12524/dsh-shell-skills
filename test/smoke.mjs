@@ -115,7 +115,7 @@ assert.equal(name, 'dsh-shell-skills')
 assert.deepEqual(inject, [], 'every service is optional so a missing registry cannot keep the plugin pending')
 assert.equal(Config.type, 'object')
 
-const VOLATILE_FIELDS = ['enabled', 'hubType', 'hubBase', 'hubRepo', 'hubBranch']
+const VOLATILE_FIELDS = ['enabled', 'hubBase', 'hubRepo', 'hubBranch']
 const ORDINARY_FIELDS = ['root', 'pythonPath', 'runTimeoutMs', 'installTimeoutMs', 'hubTokenRef']
 const STATE_FIELDS = ['installedJson', 'remoteJson', 'statusJson', 'pendingAction', 'lastActionId']
 
@@ -129,6 +129,7 @@ for (const field of STATE_FIELDS) {
   assert.equal(Config.dict[field], undefined, `${field} must not share the form document`)
   assert.equal(StateConfig.dict[field]?.meta?.volatile, true, `${field} is volatile on the state entry`)
 }
+assert.equal(Config.dict.hubType, undefined, 'the hub kind is derived from hubBase, not stored')
 assert.equal(Config.dict.hubTokenRef?.meta?.role, 'credential-ref', 'the hub token is a credential reference')
 assert.equal(Object.values(Config.dict).some((child) => child.meta?.role === 'secret'), false, 'no secret literals')
 console.log('case 1  ok  Config: the form and the state document are separate')
@@ -234,6 +235,41 @@ console.log('case 1  ok  Config: the form and the state document are separate')
   } finally {
     dispose()
   }
+}
+
+// ---------------------------------------------------------------------------
+// Case 4b — the base URL alone picks the API dialect; there is no kind switch.
+// ---------------------------------------------------------------------------
+
+{
+  fetchImpl = async (url) => {
+    if (url.endsWith('/index.json')) {
+      return jsonResponse({ skills: [{ name: 'remote', description: 'listed', path: 'skills/remote' }] })
+    }
+    return new Response('missing', { status: 404 })
+  }
+
+  const expectations = [
+    ['http://192.168.30.181:3000/', 'http://192.168.30.181:3000/abc12524/shell-skills/raw/branch/main/index.json',
+      'a self-hosted base is read through the Gitea raw path'],
+    ['', 'https://raw.githubusercontent.com/abc12524/shell-skills/main/index.json',
+      'no base means public GitHub'],
+    ['https://github.com', 'https://raw.githubusercontent.com/abc12524/shell-skills/main/index.json',
+      'spelling out github.com keeps the public API'],
+  ]
+
+  for (const [base, expected, why] of expectations) {
+    fetchCalls = []
+    const { service, dispose } = mount({ hubBase: base })
+    try {
+      const listed = await service.listRemote()
+      assert.equal(listed.length, 1, 'the remote list comes back through whichever dialect matched')
+      assert.equal(fetchCalls[0].url, expected, why)
+    } finally {
+      dispose()
+    }
+  }
+  console.log('case 4b ok  the hub kind follows hubBase, not a stored field')
 }
 
 // ---------------------------------------------------------------------------
@@ -443,14 +479,31 @@ console.log('case 1  ok  Config: the form and the state document are separate')
     }
     dispose() {}
   }
+  /**
+   * Icon exports the card may reach for. Each is a real component in the
+   * primitives module; stubbing them by name lets the test assert which glyph
+   * landed in which slot.
+   */
+  const ICON_EXPORTS = [
+    'IconSkillOutlineRegular',
+    'IconGlobeOutlineRegular',
+    'IconRefreshOutlineRegular',
+    'IconDownloadOutlineRegular',
+    'IconTrashOutlineRegular',
+    'IconCheckCircleFillMedium',
+    'IconWarningOutlineRegular',
+  ]
+  const icons = {}
+  for (const id of ICON_EXPORTS) icons[id] = (props) => ({ type: id, props })
+
   const primitives = {
     SettingsFormModel: FakeFormModel,
     SettingsForm: () => null,
     SettingsValueField: () => null,
-    SegmentedControl: () => null,
     Switch: () => null,
     Tag: () => null,
     Button: () => null,
+    ...icons,
     settingsTextField: (field) => ({
       field,
       format: (value) => (typeof value === 'string' ? value : ''),
@@ -508,12 +561,27 @@ console.log('case 1  ok  Config: the form and the state document are separate')
     throw new Error(`unexpected require: ${id}`)
   })
 
+  // The card brings its own stylesheet; a browser-only side effect, so the
+  // test supplies the two DOM members it touches and checks the tag lands once.
+  const styleTags = []
+  globalThis.document = {
+    querySelector: (selector) => styleTags.find(
+      (tag) => `style[data-plugin-css="${tag.dataset.pluginCss}"]` === selector,
+    ) ?? null,
+    createElement: () => ({ dataset: {}, textContent: '' }),
+    head: { appendChild: (tag) => { styleTags.push(tag) } },
+  }
+
   assert.deepEqual(clientExports.inject, ['slots', 'locale', 'configForms'])
   clientExports.apply(clientCtx)
   assert.equal(registered.length, 1)
   assert.equal(registered[0].entry.key, 'dsh-shell-skills')
   assert.equal(registered[0].entry.locale, 'settings.shellSkills')
   assert.equal(typeof registered[0].entry.inject().hooks.shellSkillsCard, 'object')
+  assert.equal(styleTags.length, 1, 'the card injects its stylesheet once')
+  assert.equal(styleTags[0].dataset.pluginCss, 'dsh-shell-skills/Card.css')
+  assert.match(styleTags[0].textContent, /\.sk-row/, 'the stylesheet carries the row rules')
+  assert.match(styleTags[0].textContent, /--dsw-alias-settings-card-fill/, 'the card styles itself from theme tokens')
 
   const summary = registered[0].component({
     view: 'summary',
@@ -543,7 +611,6 @@ console.log('case 1  ok  Config: the form and the state document are separate')
       saving: false,
       failed: false,
       enabled: true,
-      hubType: field('github'),
       hubBase: field(''),
       hubRepo: field('abc12524/shell-skills'),
       hubBranch: field('main'),
@@ -563,6 +630,7 @@ console.log('case 1  ok  Config: the form and the state document are separate')
     runAction: () => {},
   })
   const types = []
+  const classes = []
   const collectTypes = (node) => {
     if (node === null || node === undefined || typeof node !== 'object') return
     if (Array.isArray(node)) {
@@ -571,14 +639,96 @@ console.log('case 1  ok  Config: the form and the state document are separate')
     }
     if (node.type !== undefined) {
       types.push(node.type)
+      if (typeof node.props?.className === 'string') classes.push(node.props.className)
       collectTypes(node.props?.children)
       collectTypes(node.props?.icon)
     }
   }
+  const countOf = (predicate) => types.filter(predicate).length
   collectTypes(rendered)
-  assert.equal(types.filter((type) => type === primitives.Switch).length, 2, 'the master switch plus the installed row switch')
-  assert.equal(types.filter((type) => type === 'svg').length, 1, 'only the not-installed row shows the download arrow')
-  assert.equal(types.filter((type) => type === primitives.Button).length, 3, 'refresh, remove, and one arrow button')
+  assert.equal(countOf((type) => type === primitives.Switch), 2, 'the master switch plus the installed row switch')
+  assert.equal(countOf((type) => type === primitives.Button), 3, 'refresh, remove, and the one not-installed download')
+  assert.equal(countOf((type) => type === primitives.Tag), 2, 'the installed row status plus the installed remote marker')
+  assert.equal(countOf((type) => type === 'svg'), 0, 'glyphs come from the primitives icon set, not hand-rolled svg')
+  assert.equal(
+    countOf((type) => type === icons.IconDownloadOutlineRegular),
+    1,
+    'only the not-installed remote row offers a download glyph',
+  )
+  assert.equal(countOf((type) => type === icons.IconTrashOutlineRegular), 1, 'one remove control per installed row')
+  assert.ok(classes.includes('sk-row'), 'rows carry the card row class')
+
+  /** Depth-first lookup of the first node with an exact className. */
+  const findByClass = (node, name) => {
+    if (node === null || node === undefined || typeof node !== 'object') return undefined
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const hit = findByClass(child, name)
+        if (hit !== undefined) return hit
+      }
+      return undefined
+    }
+    if (node.props?.className === name) return node
+    const nested = findByClass(node.props?.children, name)
+    return nested ?? findByClass(node.props?.icon, name)
+  }
+
+  // The effective endpoint is labelled from the URL: never a kind switch.
+  const sourceChip = findByClass(rendered, 'sk-source')
+  assert.ok(sourceChip, 'the section header labels the effective repository')
+  assert.equal(String(sourceChip.props.children), 'GitHub · abc12524/shell-skills@main', 'an empty base reads as public GitHub')
+
+  // An empty manager renders guidance placeholders instead of blank sections.
+  const emptyCard = registered[0].component({
+    view: 'default',
+    t: (key) => key,
+    useShellSkillsCard: (select) => select({
+      available: true,
+      writable: true,
+      dirty: false,
+      invalid: false,
+      saving: false,
+      failed: false,
+      enabled: false,
+      hubBase: field('http://192.168.30.181:3000'),
+      hubRepo: field(''),
+      hubBranch: field(''),
+      installed: [],
+      remote: [],
+      status: null,
+      busy: false,
+      writeFailed: false,
+    }),
+    edit: () => {},
+    resetField: () => {},
+    save: () => {},
+    discard: () => {},
+    runAction: () => {},
+  })
+  const emptyTypes = []
+  const emptyClasses = []
+  const collectEmpty = (node) => {
+    if (node === null || node === undefined || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const child of node) collectEmpty(child)
+      return
+    }
+    if (node.type !== undefined) {
+      emptyTypes.push(node.type)
+      if (typeof node.props?.className === 'string') emptyClasses.push(node.props.className)
+      collectEmpty(node.props?.children)
+      collectEmpty(node.props?.icon)
+    }
+  }
+  collectEmpty(emptyCard)
+  const giteaChip = findByClass(emptyCard, 'sk-source')
+  assert.match(String(giteaChip?.props.children), /^Gitea · /, 'filling the base URL flips the label to Gitea without a control')
+  assert.equal(emptyClasses.filter((name) => name === 'sk-empty').length, 2, 'both empty lists get a placeholder')
+  assert.equal(
+    emptyTypes.filter((type) => type === primitives.Switch).length,
+    1,
+    'an empty card still shows the master switch and nothing else',
+  )
 
   const injected = registered[0].entry.inject()
   await injected.runAction('remove', 'demo')
