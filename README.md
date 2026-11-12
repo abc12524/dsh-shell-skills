@@ -62,7 +62,18 @@ def run(arguments: dict):
 | `installTimeoutMs` | `30000` | 远程请求超时 |
 | `hubTokenRef` | `SHELL_SKILLS_TOKEN` | 凭据引用（私有仓库用），不落配置文件 |
 
-`installedJson` / `remoteJson` / `statusJson` / `pendingAction` / `lastActionId` 是 Host 与设置页之间的状态字段，不要手改。
+`installedJson` / `remoteJson` / `statusJson` / `pendingAction` / `lastActionId` **不在这个配置文档里**。它们属于同包的第二个 entry `dsh-shell-skills-state`（`dsh-shell-skills/state`），是一个只放 volatile 状态、没有设置卡片的内部文档。
+
+```yaml
+- id: dsh-shell-skills-state
+  config:
+    installedJson: "[]"
+    statusJson: '{...}'
+    pendingAction: '{...}'
+    lastActionId: ...
+```
+
+拆开的原因：状态回写和表单保存共用 settings 的 revision 栅栏，放在同一个文档里会让"Host 刚同步完状态"直接把用户正在保存的表单打成冲突（就是设置页那条"本部署没有接受这些值"）。
 
 ## 与 dsh-inject-context 对接
 
@@ -82,9 +93,12 @@ def run(arguments: dict):
 
 外部插件不能新增 `ctx.remote.*` 命名空间（`dsh-api-remotes` 的客户端能力在构建期固定）。所以卡片与 Host 走一个私有协议：
 
-1. 点按钮 → `scope.mutate` 写 `pendingAction = { id, type, name }`；
-2. Host 每秒读一次，执行后写 `installedJson` / `statusJson` / `lastActionId`；
-3. 设置快照更新 → 卡片重绘。
+1. 表单保存只写 `dsh-shell-skills`（可编辑配置）；
+2. 点按钮 → `stateScope.mutate` 写 `dsh-shell-skills-state` 的 `pendingAction = { id, type, name, at }`；
+3. Host 每秒读一次，执行后把 `installedJson` / `statusJson` / `lastActionId` 写回**状态文档**，并把已确认的 `pendingAction` 清空；
+4. 状态文档快照更新 → 卡片重绘。
+
+**两个文档是分开的**：状态写入不会改变表单文档的 revision，所以"Host 正在同步状态"不会再让用户点保存时撞上 revision 栅栏（那条"本部署没有接受这些值，已保留供你修改"的提示）。
 
 动作按 `id` 幂等：同一个 id 只执行一次，重启后也不会重放（`lastActionId` 持久化在 profile 里）。代价是按钮到结果之间最多约 1 秒延迟。
 
@@ -94,7 +108,7 @@ def run(arguments: dict):
 - **动作带时间戳**：卡片写入 `at`；Host 遇到超过 10 分钟的动作直接标记完成（`expired`），不会在几小时后重放旧意图。
 - **卡片 30 秒兜底**：点按后最多显示"处理中" 30 秒；Host 通过 `lastActionId` 确认时提前解除，Host 不在/请求卡住时自动恢复。旧版本写入的、没有 `at` 的动作一律视为过期，不会把卡片永久钉在"处理中"。
 
-如果确实需要手动清理，删掉 profile 的 `cordis.patch.yml` 里 `dsh-shell-skills` 块的 `pendingAction` 字段并重启即可。
+如果确实需要手动清理，删掉 profile 的 `cordis.patch.yml` 里 `dsh-shell-skills-state` 块的 `pendingAction` 字段并重启即可。
 
 ## 安全
 

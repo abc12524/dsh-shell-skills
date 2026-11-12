@@ -1,14 +1,22 @@
 # Bundle patch layer for dsh-shell-skills.
 #
-# A single `insert` row loads this package's main entry as the host half (a
-# plain Cordis plugin); the `dsh.client` declaration in package.json is what
-# makes the web app load ./client as the browser half.
+# Two rows share one package:
+#
+# - `dsh-shell-skills`        the manager: scanning, hub, tool, shellSkills service
+# - `dsh-shell-skills/state`  the volatile state document the card writes
+#
+# The split is deliberate. Card saves and manager state share settings revision
+# checks; putting them in one document made a state write invalidate an open
+# form ("this deployment did not accept these values"). The state row owns no
+# behaviour — it only declares the volatile fields and publishes their live
+# config to the manager.
 #
 # No `config:` block here on purpose. Every user-facing field is `.volatile()`,
-# so the manager card on the Plugins page owns it and its value belongs in the
-# profile's own patch layer. Operational fields (root, pythonPath, timeouts)
-# are edited by adding a `config:` block to this entry in YOUR profile patch,
-# never in this file.
+# so the manager card owns it and its value belongs in the profile's own patch
+# layer. Operational fields (root, pythonPath, timeouts) are edited by adding a
+# `config:` block to the manager entry in YOUR profile patch, never in this file.
 - insert:
     - id: dsh-shell-skills
       name: dsh-shell-skills
+    - id: dsh-shell-skills-state
+      name: dsh-shell-skills/state

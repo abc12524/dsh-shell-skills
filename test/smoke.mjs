@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { Config, apply, inject, name } from '../lib/index.js'
+import { Config as StateConfig } from '../lib/state.js'
 
 const root = await mkdtemp(join(tmpdir(), 'dsh-shell-skills-'))
 const realFetch = globalThis.fetch
@@ -75,10 +76,13 @@ const BASE_CONFIG = { root, pythonPath: process.platform === 'win32' ? 'python' 
 function mount(overrides = {}, options = {}) {
   const ctx = makeCtx(options)
   const config = Config({ ...BASE_CONFIG, ...overrides })
+  const stateConfig = StateConfig({})
+  ctx.provide('shellSkillsState', { config: stateConfig, namespace: 'dsh-shell-skills-state' })
   const dispose = apply(ctx, config)
   return {
     ctx,
     config,
+    stateConfig,
     dispose,
     service: ctx.services.get('shellSkills'),
     tool: ctx.registered[0],
@@ -111,19 +115,9 @@ assert.equal(name, 'dsh-shell-skills')
 assert.deepEqual(inject, [], 'every service is optional so a missing registry cannot keep the plugin pending')
 assert.equal(Config.type, 'object')
 
-const VOLATILE_FIELDS = [
-  'enabled',
-  'hubType',
-  'hubBase',
-  'hubRepo',
-  'hubBranch',
-  'installedJson',
-  'remoteJson',
-  'statusJson',
-  'pendingAction',
-  'lastActionId',
-]
+const VOLATILE_FIELDS = ['enabled', 'hubType', 'hubBase', 'hubRepo', 'hubBranch']
 const ORDINARY_FIELDS = ['root', 'pythonPath', 'runTimeoutMs', 'installTimeoutMs', 'hubTokenRef']
+const STATE_FIELDS = ['installedJson', 'remoteJson', 'statusJson', 'pendingAction', 'lastActionId']
 
 for (const field of VOLATILE_FIELDS) {
   assert.equal(Config.dict[field]?.meta?.volatile, true, `${field} must be volatile to reach the manager card`)
@@ -131,9 +125,13 @@ for (const field of VOLATILE_FIELDS) {
 for (const field of ORDINARY_FIELDS) {
   assert.notEqual(Config.dict[field]?.meta?.volatile, true, `${field} is operational configuration, not a form field`)
 }
+for (const field of STATE_FIELDS) {
+  assert.equal(Config.dict[field], undefined, `${field} must not share the form document`)
+  assert.equal(StateConfig.dict[field]?.meta?.volatile, true, `${field} is volatile on the state entry`)
+}
 assert.equal(Config.dict.hubTokenRef?.meta?.role, 'credential-ref', 'the hub token is a credential reference')
 assert.equal(Object.values(Config.dict).some((child) => child.meta?.role === 'secret'), false, 'no secret literals')
-console.log('case 1  ok  Config: manager fields are volatile, operational fields are not')
+console.log('case 1  ok  Config: the form and the state document are separate')
 
 // ---------------------------------------------------------------------------
 // Case 2 — scanning, list/all/get.
@@ -324,23 +322,24 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
   const settings = {
     target: undefined,
     async update(ns, patch) {
-      assert.equal(ns, 'dsh-shell-skills')
+      assert.equal(ns, 'dsh-shell-skills-state', 'state never shares the form document')
       patches.push(patch)
       if (this.target !== undefined) Object.assign(this.target, patch)
     },
   }
   await writeSkill('managed', { description: 'managed skill' })
-  const { config, dispose } = mount({}, { settings })
-  settings.target = config
+  const { stateConfig, dispose } = mount({}, { settings })
+  settings.target = stateConfig
   try {
     // Wait for the first tick to mirror the installed list.
     await new Promise((resolve) => setTimeout(resolve, 1200))
     assert.ok(patches.some((patch) => typeof patch.installedJson === 'string' && patch.installedJson.includes('managed')))
 
-    const action = { id: 'action-1', type: 'disable', name: 'managed' }
-    config.pendingAction = JSON.stringify(action)
+    const action = { id: 'action-1', type: 'disable', name: 'managed', at: Date.now() }
+    stateConfig.pendingAction = JSON.stringify(action)
     await new Promise((resolve) => setTimeout(resolve, 1400))
-    assert.equal(config.lastActionId, 'action-1', 'the action is recorded once')
+    assert.equal(stateConfig.lastActionId, 'action-1', 'the action is recorded once')
+    assert.equal(stateConfig.pendingAction, '', 'an acknowledged action is retired')
     assert.ok(patches.some((patch) => patch.statusJson?.includes('done')))
     assert.ok((await readFile(join(root, 'managed', 'skill.py'), 'utf8')).includes('# status: disable'))
 
@@ -348,7 +347,7 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
     const before = patches.length
     await new Promise((resolve) => setTimeout(resolve, 1200))
     assert.equal(patches.slice(before).some((patch) => patch.statusJson !== undefined), false, 'replayed ids are ignored')
-    console.log('case 8  ok  pendingAction runs once, is idempotent, and mirrors installedJson')
+    console.log('case 8  ok  pendingAction runs once in the state document and is retired')
   } finally {
     dispose()
   }
@@ -413,14 +412,17 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
   }
   const mutations = []
   const snapshot = { status: 'ready', writable: true, revision: 3, value: {} }
-  const scope = {
-    getSnapshot: () => snapshot,
+  const stateSnapshot = { status: 'ready', writable: true, revision: 7, value: {} }
+  const makeScope = (snap) => ({
+    getSnapshot: () => snap,
     subscribe: () => () => {},
     mutate: async (ops, revision) => {
       mutations.push({ ops, revision })
       return true
     },
-  }
+  })
+  const scope = makeScope(snapshot)
+  const stateScope = makeScope(stateSnapshot)
   const registered = []
   const clientCtx = {
     effect: (fn) => {
@@ -433,10 +435,14 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
     },
     configForms: {
       get: (ns) => {
-        assert.equal(ns, 'dsh-shell-skills')
-        return scope
+        if (ns === 'dsh-shell-skills') return scope
+        assert.equal(ns, 'dsh-shell-skills-state')
+        return stateScope
       },
-      whileServed: (keys, cb) => cb(),
+      whileServed: (keys, cb) => {
+        assert.deepEqual(keys, ['dsh-shell-skills', 'dsh-shell-skills-state'])
+        return cb()
+      },
     },
     slots: {
       inject: (slotName, cb) => {
@@ -472,9 +478,9 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
   // A legacy action without a timestamp must not pin the card on "working":
   // this is what a stopped manager left behind before the timestamp existed.
   const store = registered[0].entry.inject().hooks.shellSkillsCard
-  snapshot.value = { pendingAction: JSON.stringify({ id: 'legacy', type: 'refreshRemote' }) }
+  stateSnapshot.value = { pendingAction: JSON.stringify({ id: 'legacy', type: 'refreshRemote' }) }
   assert.equal(store.get().busy, false, 'a legacy action without a timestamp does not pin the card')
-  snapshot.value = {}
+  stateSnapshot.value = {}
 
   // The full card: installed rows drive an on/off switch, remote rows use the
   // arrow-icon download button only when the skill is not installed.
@@ -530,7 +536,7 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
   const injected = registered[0].entry.inject()
   await injected.runAction('remove', 'demo')
   assert.equal(mutations.length, 1)
-  assert.deepEqual(mutations[0].revision, 3)
+  assert.deepEqual(mutations[0].revision, 7)
   assert.equal(mutations[0].ops[0].op, 'set')
   assert.deepEqual(mutations[0].ops[0].path, ['pendingAction'])
   const action = JSON.parse(mutations[0].ops[0].value)
