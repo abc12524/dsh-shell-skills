@@ -90,7 +90,15 @@ except ImportError:
 
 ## 与 dsh-inject-context 对接
 
-上下文注入插件读取 `shellSkills.list()`：
+两个插件的分工只有一条线：**名单归注入，用法归工具。**
+
+| 谁 | 拿什么 | 从哪来 |
+|---|---|---|
+| `dsh-inject-context` | 已安装且启用的 skill **名字 + 一句话说明** | `shellSkills.list()` → `{ name, description }` |
+| 模型要"怎么用" | 该 skill 的 `# usage:` 原文 | `shell_skill` 工具，`skill="<name>"`（按需调用） |
+| 模型要"执行" | skill 的返回值 | `shell_skill` 工具，`skill="<name>"` + `arguments` |
+
+`list()` 里**不含 usage**，注入块里也不含；两者都不读 `get()`。所以会话开头只有一份指针清单，参数文档不会白占每个会话的 prompt —— 这正是 `list()` 保持这么窄的原因。
 
 ```yaml
 - id: dsh-inject-context
