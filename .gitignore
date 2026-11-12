@@ -7,6 +7,10 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Editor / OS
 .DS_Store
 Thumbs.db
