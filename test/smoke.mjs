@@ -281,7 +281,12 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
 // ---------------------------------------------------------------------------
 
 {
-  const { service, tool, dispose } = mount()
+  const mounted = mount()
+  // The tool is registered after the dynamic `@deepseek-ai/dsh-tools` import.
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  const { service, dispose } = mounted
+  const tool = mounted.ctx.registered[0]
+  assert.ok(tool, 'the tool is registered asynchronously')
   const exec = { signal: new AbortController().signal }
   try {
     const listed = await tool.execute({ all: true }, exec)
