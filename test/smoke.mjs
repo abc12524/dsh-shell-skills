@@ -407,8 +407,9 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
     }),
   }
   const mutations = []
+  const snapshot = { status: 'ready', writable: true, revision: 3, value: {} }
   const scope = {
-    getSnapshot: () => ({ status: 'ready', writable: true, revision: 3, value: {} }),
+    getSnapshot: () => snapshot,
     subscribe: () => () => {},
     mutate: async (ops, revision) => {
       mutations.push({ ops, revision })
@@ -462,6 +463,13 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
     useShellSkillsCard: (select) => select({ installed: [], remote: [], status: null, busy: false, writeFailed: false }),
   })
   assert.equal(typeof summary, 'string')
+
+  // A legacy action without a timestamp must not pin the card on "working":
+  // this is what a stopped manager left behind before the timestamp existed.
+  const store = registered[0].entry.inject().hooks.shellSkillsCard
+  snapshot.value = { pendingAction: JSON.stringify({ id: 'legacy', type: 'refreshRemote' }) }
+  assert.equal(store.get().busy, false, 'a legacy action without a timestamp does not pin the card')
+  snapshot.value = {}
 
   // The full card: installed rows drive an on/off switch, remote rows use the
   // arrow-icon download button only when the skill is not installed.
