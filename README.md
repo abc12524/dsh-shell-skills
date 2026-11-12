@@ -7,7 +7,7 @@
 - **扫描**：`<root>/<name>/skill.py`，按 shell-tool 的规则解析头部（`# skill:` / `description` / `status` / `usage`，前 300 行）。
 - **服务** `shellSkills`：`list()`（仅已安装且启用）、`all()`、`get()`、`setStatus()`、`install()`、`remove()`、`run()`、`listRemote()`。
 - **工具** `shell_skill`：`all=true` 列表、`skill=name` 看用法、带 `arguments` 执行、`action` 做安装/启停。
-- **设置页**：配置远程仓库（GitHub / Gitea）、查看已安装与远程 skill、逐项启用/禁用/卸载/下载。
+- **设置页**：配置远程仓库（GitHub / Gitea）、查看已安装与远程 skill；已安装项用开关启停、可卸载，远程项用箭头图标下载。
 
 ## 安装
 

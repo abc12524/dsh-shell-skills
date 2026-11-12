@@ -463,6 +463,57 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
   })
   assert.equal(typeof summary, 'string')
 
+  // The full card: installed rows drive an on/off switch, remote rows use the
+  // arrow-icon download button only when the skill is not installed.
+  const field = (text) => ({ text, overridden: false, invalid: false })
+  const rendered = registered[0].component({
+    view: 'default',
+    t: (key) => key,
+    useShellSkillsCard: (select) => select({
+      available: true,
+      writable: true,
+      dirty: false,
+      invalid: false,
+      saving: false,
+      failed: false,
+      enabled: true,
+      hubType: field('github'),
+      hubBase: field(''),
+      hubRepo: field('abc12524/shell-skills'),
+      hubBranch: field('main'),
+      installed: [{ name: 'alpha', description: 'first', status: 'enable' }],
+      remote: [
+        { name: 'beta', description: 'second', installed: false },
+        { name: 'gamma', description: 'third', installed: true },
+      ],
+      status: null,
+      busy: false,
+      writeFailed: false,
+    }),
+    edit: () => {},
+    resetField: () => {},
+    save: () => {},
+    discard: () => {},
+    runAction: () => {},
+  })
+  const types = []
+  const collectTypes = (node) => {
+    if (node === null || node === undefined || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const child of node) collectTypes(child)
+      return
+    }
+    if (node.type !== undefined) {
+      types.push(node.type)
+      collectTypes(node.props?.children)
+      collectTypes(node.props?.icon)
+    }
+  }
+  collectTypes(rendered)
+  assert.equal(types.filter((type) => type === primitives.Switch).length, 2, 'the master switch plus the installed row switch')
+  assert.equal(types.filter((type) => type === 'svg').length, 1, 'only the not-installed row shows the download arrow')
+  assert.equal(types.filter((type) => type === primitives.Button).length, 3, 'refresh, remove, and one arrow button')
+
   const injected = registered[0].entry.inject()
   await injected.runAction('remove', 'demo')
   assert.equal(mutations.length, 1)
