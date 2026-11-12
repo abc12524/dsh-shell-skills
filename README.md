@@ -57,7 +57,7 @@ def run(arguments: dict):
 | `hubBranch` | `main` | 远程分支 |
 | `root` | `~/.dsh/shell-skills` | skill 根目录；可指向 shell-tool 的 `skill/` |
 | `pythonPath` | 平台默认 | Windows `python`，其它 `python3` |
-| `runTimeoutMs` | `60000` | 单次执行超时 |
+| `runTimeoutMs` | `630000` | 单次执行超时（10.5 分钟，给 600s 的 `wait` 留余量） |
 | `installTimeoutMs` | `30000` | 远程请求超时 |
 | `hubTokenRef` | `SHELL_SKILLS_TOKEN` | 凭据引用（私有仓库用），不落配置文件 |
 
