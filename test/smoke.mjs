@@ -454,7 +454,7 @@ console.log('case 1  ok  Config: manager fields are volatile, operational fields
   assert.equal(registered.length, 1)
   assert.equal(registered[0].entry.key, 'dsh-shell-skills')
   assert.equal(registered[0].entry.locale, 'settings.shellSkills')
-  assert.equal(typeof registered[0].entry.inject().hooks.injectShellSkillsCard, 'object')
+  assert.equal(typeof registered[0].entry.inject().hooks.shellSkillsCard, 'object')
 
   const summary = registered[0].component({
     view: 'summary',
