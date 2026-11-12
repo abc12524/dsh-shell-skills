@@ -331,17 +331,17 @@ console.log('case 1  ok  Config: the form and the state document are separate')
     assert.equal(listedValue.skills.beta, undefined, 'disabled skills stay out of the disclosure')
 
     const usage = await tool.execute({ skill: 'runner' }, exec)
+    assert.equal(usage.status, 'ok', 'the reply keeps the {status, result} envelope')
     assert.equal(
       usage.result,
-      '<user-reminder>\nrunner {x: string} - echoes the value back\n</user-reminder>',
-      'a name-only call returns the usage header alone, fenced, with no envelope',
+      'runner {x: string} - echoes the value back',
+      'a name-only call returns the usage header alone, verbatim, with no fence',
     )
-    // A skill without a usage header still answers, with the fallback inside the
-    // same fence.
+    // A skill without a usage header still answers, with a plain note.
     await writeSkill('no-usage', { description: 'silent skill' })
     await service.refresh()
     const bare = await tool.execute({ skill: 'no-usage' }, exec)
-    assert.equal(bare.result, '<user-reminder>\n(skill "no-usage" declares no usage)\n</user-reminder>')
+    assert.equal(bare.result, '(skill "no-usage" declares no usage)')
 
     const ran = await tool.execute({ skill: 'runner', arguments: { x: 'tool' } }, exec)
     assert.equal(JSON.parse(ran.result).result.echo, 'seen:tool')
