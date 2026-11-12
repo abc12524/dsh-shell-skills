@@ -6,7 +6,7 @@
 
 - **扫描**：`<root>/<name>/skill.py`，按 shell-tool 的规则解析头部（`# skill:` / `description` / `status` / `usage`，前 300 行）。
 - **服务** `shellSkills`：`list()`（仅已安装且启用）、`all()`、`get()`、`setStatus()`、`install()`、`remove()`、`run()`、`listRemote()`。
-- **工具** `shell_skill`：`all=true` 列表、`skill=name` 看用法、带 `arguments` 执行、`action` 做安装/启停。
+- **工具** `shell_skill`：`all=true` 列表、`skill=name` 只返回该 skill 的 `# usage:` 块（不含描述/状态/信封，整段包在 `<user-reminder>` 里）、带 `arguments` 执行、`action` 做安装/启停。
 - **设置页**：配置远程仓库（GitHub / Gitea）、查看已安装与远程 skill；已安装项用开关启停、可卸载，远程项用箭头图标下载。
 
 ## 安装
@@ -96,11 +96,11 @@ except ImportError:
 - id: dsh-inject-context
   name: dsh-inject-context
   config:
-    skillList: true        # 已默认开启，这里仅作显式声明
+    skillList: true        # 设置页开关，默认开
     skillService: shellSkills
 ```
 
-每会话首次对话会多一条 `<shell_skills>` 名单。它与 harness 自带的 `tool-skill` 目录（`<available_skills>`）**并行**：两套名单都会到达模型，各自使用独立的信封，互不覆盖、互不抑制。
+要让名单出现在会话里，还需要 `dsh-inject-context` 与本插件同时加载：它每会话首次对话读一次 `shellSkills.list()`，把名单包进 `<user-reminder>` 插到用户提问下方（名单本体仍是 `<available_skills>` 块）。它与 harness 自带的 `tool-skill` 目录使用同一个标记，所以**两个都加载会重复**——用 `skillList=false` 关掉其中一个。
 
 ## 设置页为什么是"保存式"的
 

@@ -259,6 +259,7 @@ console.log('case 1  ok  Config: the form and the state document are separate')
 {
   await writeSkill('runner', {
     description: 'python round trip',
+    usage: 'runner {x: string} - echoes the value back',
     body: 'from ._impl import PREFIX\n\n\ndef run(arguments):\n    return {"echo": PREFIX + str(arguments.get("x", ""))}\n',
     helper: 'PREFIX = "seen:"\n',
   })
@@ -330,7 +331,17 @@ console.log('case 1  ok  Config: the form and the state document are separate')
     assert.equal(listedValue.skills.beta, undefined, 'disabled skills stay out of the disclosure')
 
     const usage = await tool.execute({ skill: 'runner' }, exec)
-    assert.match(JSON.parse(usage.result).description, /python round trip/)
+    assert.equal(
+      usage.result,
+      '<user-reminder>\nrunner {x: string} - echoes the value back\n</user-reminder>',
+      'a name-only call returns the usage header alone, fenced, with no envelope',
+    )
+    // A skill without a usage header still answers, with the fallback inside the
+    // same fence.
+    await writeSkill('no-usage', { description: 'silent skill' })
+    await service.refresh()
+    const bare = await tool.execute({ skill: 'no-usage' }, exec)
+    assert.equal(bare.result, '<user-reminder>\n(skill "no-usage" declares no usage)\n</user-reminder>')
 
     const ran = await tool.execute({ skill: 'runner', arguments: { x: 'tool' } }, exec)
     assert.equal(JSON.parse(ran.result).result.echo, 'seen:tool')
