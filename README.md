@@ -75,6 +75,19 @@ def run(arguments: dict):
 
 拆开的原因：状态回写和表单保存共用 settings 的 revision 栅栏，放在同一个文档里会让"Host 刚同步完状态"直接把用户正在保存的表单打成冲突（就是设置页那条"本部署没有接受这些值"）。
 
+## 技能脚本的导入兼容
+
+共享 shell-skills 的脚本按 shell-tool / 移动端约定取结果信封：
+
+```python
+try:
+    from _envelope import ok, error
+except ImportError:
+    from core.tools.envelope import ok, error
+```
+
+本插件没有 `core` 包，所以运行器在加载技能前把 `lib/shims/` 放进 `sys.path`，让第一条导入命中内置垫片；返回的 JSON 信封与 `core.tools.envelope` 完全一致。技能目录自带的 `_envelope.py` 仍然优先。
+
 ## 与 dsh-inject-context 对接
 
 上下文注入插件读取 `shellSkills.list()`：
@@ -83,11 +96,11 @@ def run(arguments: dict):
 - id: dsh-inject-context
   name: dsh-inject-context
   config:
-    skillList: true
+    skillList: true        # 已默认开启，这里仅作显式声明
     skillService: shellSkills
 ```
 
-这样每会话首次对话会多一条 `<available_skills>` 名单。**不要**与 harness 自带的 `tool-skill` 同时开 —— 它自己也会发布 skill 目录。
+每会话首次对话会多一条 `<shell_skills>` 名单。它与 harness 自带的 `tool-skill` 目录（`<available_skills>`）**并行**：两套名单都会到达模型，各自使用独立的信封，互不覆盖、互不抑制。
 
 ## 设置页为什么是"保存式"的
 

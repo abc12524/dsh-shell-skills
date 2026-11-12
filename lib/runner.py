@@ -23,6 +23,8 @@ import sys
 import traceback
 import types
 
+SHIMS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shims")
+
 
 def _load(root: str, skill: str):
     """Load `<root>/<skill>/skill.py` as a package module and return it."""
@@ -30,6 +32,12 @@ def _load(root: str, skill: str):
     entry = os.path.join(skill_dir, "skill.py")
     if not os.path.isfile(entry):
         raise FileNotFoundError(f"skill entry not found: {entry}")
+
+    # Shared skills use `from _envelope import ok, error` outside shell-tool;
+    # this runner has no `core` package, so the shim directory backs that import.
+    for extra in (skill_dir, SHIMS_DIR):
+        if extra not in sys.path:
+            sys.path.insert(0, extra)
 
     # A synthetic parent package gives relative imports a home without relying
     # on the root directory name (which may contain characters Python cannot

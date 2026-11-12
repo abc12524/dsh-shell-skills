@@ -24,6 +24,7 @@
     "lib/state.js",
     "lib/client.js",
     "lib/runner.py",
+    "lib/shims/_envelope.py",
     "cordis.patch.yml",
     "README.md"
   ],

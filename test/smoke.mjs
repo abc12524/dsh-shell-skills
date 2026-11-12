@@ -275,6 +275,42 @@ console.log('case 1  ok  Config: the form and the state document are separate')
 }
 
 // ---------------------------------------------------------------------------
+// Case 6b — shared shell-skills resolve `from _envelope import ok, error`.
+// ---------------------------------------------------------------------------
+
+{
+  await writeSkill('shimmed', {
+    description: 'envelope shim',
+    body: [
+      'from _envelope import ok, error',
+      '',
+      '',
+      'def run(arguments):',
+      '    if arguments.get("fail"):',
+      '        return error("boom", code="exploded")',
+      '    return ok({"echo": arguments.get("x", "")})',
+      '',
+    ].join('\n'),
+  })
+  const { service, dispose } = mount()
+  try {
+    const envelope = await service.run('shimmed', { x: 'hi' })
+    assert.equal(envelope.status, 'ok')
+    const inner = JSON.parse(envelope.result)
+    assert.deepEqual(inner, { status: 'ok', result: { echo: 'hi' } })
+
+    const failed = await service.run('shimmed', { fail: true })
+    assert.equal(failed.status, 'ok', 'a skill-level error is still a successful run')
+    const innerError = JSON.parse(failed.result)
+    assert.equal(innerError.status, 'error')
+    assert.equal(innerError.code, 'exploded')
+    console.log('case 6b ok  shared shell-skills resolve _envelope through the runner shim')
+  } finally {
+    dispose()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Case 7 — the shell_skill tool routes list / usage / run / manager actions.
 // ---------------------------------------------------------------------------
 
