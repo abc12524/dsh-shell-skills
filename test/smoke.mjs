@@ -108,7 +108,7 @@ console.log(`fixture: ${root}\n`)
 // ---------------------------------------------------------------------------
 
 assert.equal(name, 'dsh-shell-skills')
-assert.deepEqual(inject, ['tools'], 'the tool registration is the only hard service dependency')
+assert.deepEqual(inject, [], 'every service is optional so a missing registry cannot keep the plugin pending')
 assert.equal(Config.type, 'object')
 
 const VOLATILE_FIELDS = [
